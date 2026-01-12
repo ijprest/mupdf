@@ -532,6 +532,18 @@ fz_device *fz_new_bbox_device(fz_context *ctx, fz_rect *rectp);
 */
 fz_device *fz_new_test_device(fz_context *ctx, int *is_color, float threshold, int options, fz_device *passthrough);
 
+/**
+	Create a gate device that suppresses painting operations until
+	the specified PDF image XObject object number is encountered.
+*/
+fz_device *fz_new_gate_device(fz_context *ctx, fz_device *target, int target_xobject);
+
+/**
+	Check a device for a matching XObject object number and enable
+	painting if it matches. Returns 1 if enabled, otherwise 0.
+*/
+int fz_gate_device_match_xobject(fz_context *ctx, fz_device *dev, int objnum);
+
 enum
 {
 	/* If set, test every pixel of images exhaustively.

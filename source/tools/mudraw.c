@@ -341,6 +341,8 @@ static const char *icc_filename = NULL;
 static float gamma_value = 1;
 static int invert = 0;
 static int s_kill = 0; /* Using `kill` causes problems on Android. */
+static int gate_xobject = 0;
+static int gate_xobject_active = 0;
 static int band_height = 0;
 static int lowmemory = 0;
 
@@ -463,6 +465,7 @@ static int usage(void)
 		"\t-l -\tminimum stroked line width (in pixels)\n"
 		"\t-K\tdo not draw text\n"
 		"\t-KK\tonly draw text\n"
+		"\t-J -\tskip drawing before (and including) PDF image XObject id\n"
 		"\t-D\tdisable use of display list\n"
 		"\t-i\tignore errors\n"
 		"\t-m -\tlimit memory usage in bytes\n"
@@ -645,6 +648,8 @@ static void drawband(fz_context *ctx, fz_page *page, fz_display_list *list, fz_m
 
 		dev = fz_new_draw_device_with_proof(ctx, fz_identity, pix, proof_cs);
 		apply_kill_switch(dev);
+		if (gate_xobject_active > 0 && list == NULL)
+			dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 		if (lowmemory)
 			fz_enable_device_hints(ctx, dev, FZ_NO_CACHE);
 		if (alphabits_graphics == 0)
@@ -716,6 +721,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 				dev = NULL;
 				dev = fz_new_ocr_device(ctx, pre_ocr_dev, ctm, mediabox, 1, ocr_language, ocr_datadir, NULL, NULL);
 			}
+			if (gate_xobject_active > 0 && list == NULL)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (lowmemory)
 				fz_enable_device_hints(ctx, dev, FZ_NO_CACHE);
 			if (list)
@@ -757,6 +764,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 					tmediabox.x0, tmediabox.y0, tmediabox.x1, tmediabox.y1);
 			dev = fz_new_xmltext_device(ctx, out);
 			apply_kill_switch(dev);
+			if (gate_xobject_active > 0 && list == NULL)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (list)
 				fz_run_display_list(ctx, list, dev, ctm, fz_infinite_rect, cookie);
 			else
@@ -789,6 +798,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 
 			dev = fz_new_bbox_device(ctx, &bbox);
 			apply_kill_switch(dev);
+			if (gate_xobject_active > 0 && list == NULL)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (lowmemory)
 				fz_enable_device_hints(ctx, dev, FZ_NO_CACHE);
 			if (list)
@@ -856,6 +867,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 				dev = NULL;
 				dev = fz_new_ocr_device(ctx, pre_ocr_dev, ctm, mediabox, 1, ocr_language, ocr_datadir, NULL, NULL);
 			}
+			if (gate_xobject_active > 0 && list == NULL)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (list)
 				fz_run_display_list(ctx, list, dev, ctm, fz_infinite_rect, cookie);
 			else
@@ -922,6 +935,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 
 			dev = pdf_page_write(ctx, pdfout, mediabox, &resources, &contents);
 			apply_kill_switch(dev);
+			if (gate_xobject_active > 0 && list == NULL)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (list)
 				fz_run_display_list(ctx, list, dev, fz_identity, fz_infinite_rect, cookie);
 			else
@@ -965,6 +980,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 			opts.id = 0;
 			dev = fz_new_svg_device_with_options(ctx, out, tbounds.x1-tbounds.x0, tbounds.y1-tbounds.y0, &opts);
 			apply_kill_switch(dev);
+			if (gate_xobject_active > 0 && list == NULL)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (lowmemory)
 				fz_enable_device_hints(ctx, dev, FZ_NO_CACHE);
 			if (list)
@@ -1437,6 +1454,8 @@ static void drawpage(fz_context *ctx, fz_document *doc, int pagenum)
 		{
 			list = fz_new_display_list(ctx, fz_bound_page_box(ctx, page, page_box));
 			dev = fz_new_list_device(ctx, list);
+			if (gate_xobject_active > 0)
+				dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 			if (lowmemory)
 				fz_enable_device_hints(ctx, dev, FZ_NO_CACHE);
 			fz_run_page(ctx, page, dev, fz_identity, &cookie);
@@ -1467,6 +1486,8 @@ static void drawpage(fz_context *ctx, fz_document *doc, int pagenum)
 		int iscolor;
 		dev = fz_new_test_device(ctx, &iscolor, 0.02f, 0, NULL);
 		apply_kill_switch(dev);
+		if (gate_xobject_active > 0 && list == NULL)
+			dev = fz_new_gate_device(ctx, dev, gate_xobject_active);
 		if (lowmemory)
 			fz_enable_device_hints(ctx, dev, FZ_NO_CACHE);
 		fz_try(ctx)
@@ -2082,7 +2103,7 @@ int mudraw_main(int argc, char **argv)
 
 	fz_var(doc);
 
-	while ((c = fz_getopt(argc, argv, "qp:o:F:R:r:w:h:fB:c:e:G:Is:A:DiW:H:S:T:t:d:U:XLvPl:y:Yz:Z:NO:am:Kb:k:")) != -1)
+	while ((c = fz_getopt(argc, argv, "qp:o:F:R:r:w:h:fB:c:e:G:Is:A:DiW:H:S:T:t:d:U:XLvPl:y:Yz:Z:NO:am:KJ:b:k:")) != -1)
 	{
 		switch (c)
 		{
@@ -2122,6 +2143,18 @@ int mudraw_main(int argc, char **argv)
 		case 'X': layout_use_doc_css = 0; break;
 
 		case 'K': ++s_kill; break;
+		case 'J':
+		{
+			char *end;
+			long val = strtol(fz_optarg, &end, 10);
+			if (fz_optarg[0] == 0 || *end != 0 || val <= 0 || val > INT_MAX)
+			{
+				fprintf(stderr, "Invalid PDF image XObject id: %s\n", fz_optarg);
+				return 1;
+			}
+			gate_xobject = (int)val;
+			break;
+		}
 
 		case 'O': spots = fz_atof(fz_optarg);
 #ifndef FZ_ENABLE_SPOT_RENDERING
@@ -2614,6 +2647,29 @@ int mudraw_main(int argc, char **argv)
 						if (!fz_authenticate_password(ctx, doc, password))
 							fz_throw(ctx, FZ_ERROR_ARGUMENT, "cannot authenticate password: %s", filename);
 					}
+
+#if FZ_ENABLE_PDF
+					if (gate_xobject > 0)
+					{
+						if (pdf_specifics(ctx, doc) == NULL)
+						{
+							fz_warn(ctx, "option -J ignored for non-PDF document '%s'", filename);
+							gate_xobject_active = 0;
+						}
+						else
+						{
+							gate_xobject_active = gate_xobject;
+						}
+					}
+					else
+					{
+						gate_xobject_active = 0;
+					}
+#else
+					if (gate_xobject > 0)
+						fz_warn(ctx, "option -J ignored (PDF support disabled)");
+					gate_xobject_active = 0;
+#endif
 
 #ifdef CLUSTER
 					/* Load and then drop the outline if we're running under the cluster.

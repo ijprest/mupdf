@@ -3084,6 +3084,13 @@ static void pdf_run_sh(fz_context *ctx, pdf_processor *proc, const char *name, f
 static void pdf_run_Do_image(fz_context *ctx, pdf_processor *proc, const char *name, fz_image *image)
 {
 	pdf_run_processor *pr = (pdf_run_processor *)proc;
+	pdf_obj *xobj;
+	int objnum;
+
+	xobj = pdf_lookup_resource(ctx, proc->rstack, PDF_NAME(XObject), name);
+	objnum = xobj ? pdf_to_num(ctx, xobj) : 0;
+	if (objnum && fz_gate_device_match_xobject(ctx, pr->dev, objnum))
+		return;
 	pdf_show_image(ctx, pr, image);
 }
 

@@ -1119,6 +1119,7 @@
     <ClCompile Include="..\..\source\fitz\filter-thunder.c" />
     <ClCompile Include="..\..\source\fitz\font.c" />
     <ClCompile Include="..\..\source\fitz\ftoa.c" />
+    <ClCompile Include="..\..\source\fitz\gate-device.c" />
     <ClCompile Include="..\..\source\fitz\geometry.c" />
     <ClCompile Include="..\..\source\fitz\getopt.c" />
     <ClCompile Include="..\..\source\fitz\glyph.c" />

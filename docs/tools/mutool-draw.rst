@@ -74,6 +74,8 @@ The ``draw`` command will render a document to image files, convert to another v
 		Do not draw text.
 	``-KK``
 		Only draw text.
+	``-J`` object-number
+		Skip drawing before (and including) the image XObject with the given PDF object number. Only applies to PDF; inline images have no object number.
 	``-D``
 		Disable use of display lists. May cause slowdowns, but should reduce the amount of memory used.
 	``-i``
