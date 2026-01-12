@@ -13,6 +13,11 @@ The ``extract`` command can be used to extract images and font files from a PDF 
 	``-p`` password
 		Use the specified password if the file is encrypted.
 
+	``-o`` filename
+		Output filename when extracting a single object. When more than one
+		object number is specified, this is treated as a base name and the
+		default output filename is appended.
+
 	``-r``
 		Convert images to RGB when extracting them.
 
