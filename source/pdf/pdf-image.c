@@ -185,6 +185,8 @@ pdf_load_image_imp(fz_context *ctx, pdf_document *doc, pdf_resource_stack *rdb, 
 				worst_case *= colorspace->n;
 			buffer = pdf_load_compressed_stream(ctx, doc, pdf_to_num(ctx, dict), worst_case);
 			image = fz_new_image_from_compressed_buffer(ctx, w, h, bpc, colorspace, 96, 96, interpolate, imagemask, decode, use_colorkey ? colorkey : NULL, buffer, mask);
+			if (pdf_is_indirect(ctx, dict))
+				fz_image_set_reference(image, pdf_to_num(ctx, dict), pdf_to_gen(ctx, dict));
 		}
 		else
 		{
@@ -324,11 +326,32 @@ fz_image *
 pdf_load_image(fz_context *ctx, pdf_document *doc, pdf_obj *dict)
 {
 	fz_image *image;
+	int is_indirect;
+	int num;
+	int gen;
 
 	if ((image = pdf_find_item(ctx, fz_drop_image_imp, dict)) != NULL)
+	{
+		is_indirect = pdf_is_indirect(ctx, dict);
+		if (is_indirect)
+		{
+			num = pdf_to_num(ctx, dict);
+			gen = pdf_to_gen(ctx, dict);
+			if (num > 0)
+				fz_image_set_reference(image, num, gen);
+		}
 		return image;
+	}
 
 	image = pdf_load_image_imp(ctx, doc, NULL, dict, NULL, 0);
+	is_indirect = pdf_is_indirect(ctx, dict);
+	if (is_indirect)
+	{
+		num = pdf_to_num(ctx, dict);
+		gen = pdf_to_gen(ctx, dict);
+		if (num > 0)
+			fz_image_set_reference(image, num, gen);
+	}
 	pdf_store_item(ctx, dict, image, fz_image_size(ctx, image));
 	return image;
 }

@@ -65,6 +65,23 @@ fz_trace_color_params(fz_context *ctx, fz_output *out, fz_color_params color_par
 }
 
 static void
+fz_trace_image_info(fz_context *ctx, fz_output *out, fz_image *image)
+{
+	int type;
+	int num;
+	int gen;
+
+	if (!image)
+		return;
+
+	type = fz_compressed_image_type(ctx, image);
+	fz_write_printf(ctx, out, " format=\"%s\"", fz_image_type_name(type));
+
+	if (fz_image_get_reference(image, &num, &gen))
+		fz_write_printf(ctx, out, " ref=\"%d %d R\"", num, gen);
+}
+
+static void
 fz_trace_text_span(fz_context *ctx, fz_output *out, fz_text_span *span, int depth)
 {
 	int i;
@@ -365,6 +382,7 @@ fz_trace_fill_image(fz_context *ctx, fz_device *dev_, fz_image *image, fz_matrix
 	fz_write_printf(ctx, out, "<fill_image alpha=\"%g\"", alpha);
 	if (image->colorspace)
 		fz_write_printf(ctx, out, " colorspace=\"%s\"", fz_colorspace_name(ctx, image->colorspace));
+	fz_trace_image_info(ctx, out, image);
 	fz_trace_color_params(ctx, out, color_params);
 	fz_trace_matrix(ctx, out, ctm);
 	fz_write_printf(ctx, out, " width=\"%d\" height=\"%d\"", image->w, image->h);
@@ -453,6 +471,7 @@ fz_trace_fill_image_mask(fz_context *ctx, fz_device *dev_, fz_image *image, fz_m
 	fz_output *out = dev->out;
 	fz_trace_indent(ctx, out, dev->depth);
 	fz_write_printf(ctx, out, "<fill_image_mask");
+	fz_trace_image_info(ctx, out, image);
 	fz_trace_matrix(ctx, out, ctm);
 	fz_trace_color(ctx, out, colorspace, color, alpha);
 	fz_trace_color_params(ctx, out, color_params);
@@ -467,6 +486,7 @@ fz_trace_clip_image_mask(fz_context *ctx, fz_device *dev_, fz_image *image, fz_m
 	fz_output *out = dev->out;
 	fz_trace_indent(ctx, out, dev->depth);
 	fz_write_printf(ctx, out, "<clip_image_mask");
+	fz_trace_image_info(ctx, out, image);
 	fz_trace_matrix(ctx, out, ctm);
 	fz_write_printf(ctx, out, " width=\"%d\" height=\"%d\"", image->w, image->h);
 	fz_write_printf(ctx, out, "/>\n");

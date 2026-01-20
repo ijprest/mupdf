@@ -329,6 +329,19 @@ size_t fz_image_size(fz_context *ctx, fz_image *im);
 */
 int fz_compressed_image_type(fz_context *ctx, fz_image *image);
 
+/**
+	Set an optional source reference for an image (for example, a PDF
+	object reference).
+*/
+void fz_image_set_reference(fz_image *image, int num, int gen);
+
+/**
+	Get the optional source reference for an image.
+
+	Returns non-zero if the reference is present.
+*/
+int fz_image_get_reference(fz_image *image, int *num, int *gen);
+
 
 /**
 	Structure is public to allow other structures to
@@ -348,7 +361,10 @@ struct fz_image
 	unsigned int scalable:1;
 	unsigned int intent:2;
 	unsigned int has_intent:1;
+	unsigned int has_ref:1;
 	uint8_t orientation;
+	int ref_num;
+	int ref_gen;
 	fz_image *mask;
 	int xres; /* As given in the image, not necessarily as rendered */
 	int yres; /* As given in the image, not necessarily as rendered */

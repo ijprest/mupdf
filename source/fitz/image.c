@@ -1218,6 +1218,9 @@ fz_new_image_of_size(fz_context *ctx, int w, int h, int bpc, fz_colorspace *colo
 	image->imagemask = imagemask;
 	image->intent = 0;
 	image->has_intent = 0;
+	image->has_ref = 0;
+	image->ref_num = 0;
+	image->ref_gen = 0;
 
 	image->use_colorkey = (colorkey != NULL);
 	if (colorkey)
@@ -1261,6 +1264,28 @@ fz_new_image_of_size(fz_context *ctx, int w, int h, int bpc, fz_colorspace *colo
 	image->mask = fz_keep_image(ctx, mask);
 
 	return image;
+}
+
+void
+fz_image_set_reference(fz_image *image, int num, int gen)
+{
+	if (!image)
+		return;
+	image->has_ref = 1;
+	image->ref_num = num;
+	image->ref_gen = gen;
+}
+
+int
+fz_image_get_reference(fz_image *image, int *num, int *gen)
+{
+	if (!image || !image->has_ref)
+		return 0;
+	if (num)
+		*num = image->ref_num;
+	if (gen)
+		*gen = image->ref_gen;
+	return 1;
 }
 
 static size_t
