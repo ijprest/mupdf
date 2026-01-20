@@ -593,6 +593,10 @@ void fz_print_stext_trailer_as_xhtml(fz_context *ctx, fz_output *out);
 	Output structured text to a file in XML format.
 */
 void fz_print_stext_page_as_xml(fz_context *ctx, fz_output *out, fz_stext_page *page, int id);
+/**
+	Output structured text page contents in XML format without a page wrapper.
+*/
+void fz_print_stext_page_as_xml_body(fz_context *ctx, fz_output *out, fz_stext_page *page);
 
 /**
 	Output structured text to a file in JSON format.

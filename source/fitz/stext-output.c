@@ -1078,6 +1078,12 @@ fz_print_stext_page_as_xml(fz_context *ctx, fz_output *out, fz_stext_page *page,
 	fz_write_string(ctx, out, "</page>\n");
 }
 
+void
+fz_print_stext_page_as_xml_body(fz_context *ctx, fz_output *out, fz_stext_page *page)
+{
+	as_xml(ctx, page->first_block, out);
+}
+
 /* JSON dump */
 
 static void

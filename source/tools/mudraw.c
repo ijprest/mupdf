@@ -701,6 +701,9 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 		float zoom;
 		fz_matrix ctm;
 		fz_device *pre_ocr_dev = NULL;
+		fz_device *text_dev = NULL;
+		fz_device *pre_ocr_text_dev = NULL;
+		fz_stext_page *text = NULL;
 		fz_rect tmediabox;
 
 		zoom = resolution / 72;
@@ -708,9 +711,14 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 		tmediabox = fz_transform_rect(mediabox, ctm);
 
 		fz_var(pre_ocr_dev);
+		fz_var(text_dev);
+		fz_var(pre_ocr_text_dev);
+		fz_var(text);
 
 		fz_try(ctx)
 		{
+			fz_stext_options stext_options = { 0 };
+
 			fz_write_printf(ctx, out, "<page number=\"%d\" mediabox=\"%g %g %g %g\">\n",
 				pagenum, tmediabox.x0, tmediabox.y0, tmediabox.x1, tmediabox.y1);
 			dev = fz_new_trace_device(ctx, out);
@@ -735,10 +743,42 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 			fz_close_device(ctx, pre_ocr_dev);
 			fz_drop_device(ctx, pre_ocr_dev);
 			pre_ocr_dev = NULL;
+
+			stext_options.flags = FZ_STEXT_CLIP | FZ_STEXT_ACCURATE_BBOXES | FZ_STEXT_COLLECT_STYLES;
+			text = fz_new_stext_page(ctx, tmediabox);
+			text_dev = fz_new_stext_device(ctx, text, &stext_options);
+			apply_kill_switch(text_dev);
+			if (output_format == OUT_OCR_TRACE)
+			{
+				pre_ocr_text_dev = text_dev;
+				text_dev = NULL;
+				text_dev = fz_new_ocr_device(ctx, pre_ocr_text_dev, ctm, mediabox, 1, ocr_language, ocr_datadir, NULL, NULL);
+			}
+			if (gate_xobject_active > 0 && list == NULL)
+				text_dev = fz_new_gate_device(ctx, text_dev, gate_xobject_active);
+			if (lowmemory)
+				fz_enable_device_hints(ctx, text_dev, FZ_NO_CACHE);
+			if (list)
+				fz_run_display_list(ctx, list, text_dev, ctm, fz_infinite_rect, cookie);
+			else
+				fz_run_page(ctx, page, text_dev, ctm, cookie);
+			fz_close_device(ctx, text_dev);
+			fz_drop_device(ctx, text_dev);
+			text_dev = NULL;
+			fz_close_device(ctx, pre_ocr_text_dev);
+			fz_drop_device(ctx, pre_ocr_text_dev);
+			pre_ocr_text_dev = NULL;
+
+			fz_write_string(ctx, out, "<stext>\n");
+			fz_print_stext_page_as_xml_body(ctx, out, text);
+			fz_write_string(ctx, out, "</stext>\n");
 			fz_write_printf(ctx, out, "</page>\n");
 		}
 		fz_always(ctx)
 		{
+			fz_drop_device(ctx, pre_ocr_text_dev);
+			fz_drop_device(ctx, text_dev);
+			fz_drop_stext_page(ctx, text);
 			fz_drop_device(ctx, pre_ocr_dev);
 			fz_drop_device(ctx, dev);
 		}
