@@ -393,6 +393,7 @@ static struct {
 	char *filename;
 	fz_display_list *list;
 	fz_page *page;
+	fz_document *doc;
 	int interptime;
 	fz_separations *seps;
 } bgprint;
@@ -681,7 +682,45 @@ static void drawband(fz_context *ctx, fz_page *page, fz_display_list *list, fz_m
 static void worker_thread(void *arg);
 #endif
 
-static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, int pagenum, fz_cookie *cookie, int start, int interptime, char *fname, int bg, fz_separations *seps)
+#if FZ_ENABLE_PDF
+static void append_page_box_attr(fz_context *ctx, pdf_obj *pageref, const char *name, pdf_obj *key, char *buf, size_t buflen, size_t *len)
+{
+	pdf_obj *obj;
+	fz_rect bbox;
+
+	fz_try(ctx)
+	{
+		obj = pdf_dict_get(ctx, pageref, key);
+		if (!pdf_is_array(ctx, obj))
+			return;
+		bbox = pdf_to_rect(ctx, obj);
+		*len += fz_snprintf(buf + *len, buflen - *len, " %s=\"%g %g %g %g\"", name, bbox.x0, bbox.y0, bbox.x1, bbox.y1);
+	}
+	fz_catch(ctx)
+	{
+		fz_ignore_error(ctx);
+	}
+}
+
+static void append_page_num_attr(fz_context *ctx, pdf_obj *pageref, const char *name, pdf_obj *key, char *buf, size_t buflen, size_t *len)
+{
+	pdf_obj *obj;
+
+	fz_try(ctx)
+	{
+		obj = pdf_dict_get(ctx, pageref, key);
+		if (!pdf_is_number(ctx, obj))
+			return;
+		*len += fz_snprintf(buf + *len, buflen - *len, " %s=\"%g\"", name, pdf_to_real(ctx, obj));
+	}
+	fz_catch(ctx)
+	{
+		fz_ignore_error(ctx);
+	}
+}
+#endif
+
+static void dodrawpage(fz_context *ctx, fz_document *doc, fz_page *page, fz_display_list *list, int pagenum, fz_cookie *cookie, int start, int interptime, char *fname, int bg, fz_separations *seps)
 {
 	fz_rect mediabox;
 	fz_device *dev = NULL;
@@ -705,6 +744,8 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 		fz_device *pre_ocr_text_dev = NULL;
 		fz_stext_page *text = NULL;
 		fz_rect tmediabox;
+		char page_attrs[512];
+		size_t page_attrs_len = 0;
 
 		zoom = resolution / 72;
 		ctm = fz_pre_scale(fz_rotate(rotation), zoom, zoom);
@@ -718,9 +759,26 @@ static void dodrawpage(fz_context *ctx, fz_page *page, fz_display_list *list, in
 		fz_try(ctx)
 		{
 			fz_stext_options stext_options = { 0 };
+			page_attrs[0] = '\0';
+#if FZ_ENABLE_PDF
+			pdf_document *pdoc = pdf_specifics(ctx, doc);
+			if (pdoc)
+			{
+				pdf_obj *pageref = pdf_lookup_page_obj(ctx, pdoc, pagenum - 1);
+				if (pageref)
+				{
+					append_page_box_attr(ctx, pageref, "cropbox", PDF_NAME(CropBox), page_attrs, sizeof(page_attrs), &page_attrs_len);
+					append_page_box_attr(ctx, pageref, "artbox", PDF_NAME(ArtBox), page_attrs, sizeof(page_attrs), &page_attrs_len);
+					append_page_box_attr(ctx, pageref, "bleedbox", PDF_NAME(BleedBox), page_attrs, sizeof(page_attrs), &page_attrs_len);
+					append_page_box_attr(ctx, pageref, "trimbox", PDF_NAME(TrimBox), page_attrs, sizeof(page_attrs), &page_attrs_len);
+					append_page_num_attr(ctx, pageref, "rotate", PDF_NAME(Rotate), page_attrs, sizeof(page_attrs), &page_attrs_len);
+				}
+			}
+#endif
+			page_attrs[page_attrs_len] = '\0';
 
-			fz_write_printf(ctx, out, "<page number=\"%d\" mediabox=\"%g %g %g %g\">\n",
-				pagenum, tmediabox.x0, tmediabox.y0, tmediabox.x1, tmediabox.y1);
+			fz_write_printf(ctx, out, "<page number=\"%d\" mediabox=\"%g %g %g %g\"%s>\n",
+				pagenum, tmediabox.x0, tmediabox.y0, tmediabox.x1, tmediabox.y1, page_attrs);
 			dev = fz_new_trace_device(ctx, out);
 			apply_kill_switch(dev);
 			if (output_format == OUT_OCR_TRACE)
@@ -1574,6 +1632,7 @@ static void drawpage(fz_context *ctx, fz_document *doc, int pagenum)
 			bgprint.page = page;
 			bgprint.list = list;
 			bgprint.seps = seps;
+			bgprint.doc = doc;
 			bgprint.filename = filename;
 			bgprint.pagenum = pagenum;
 			bgprint.interptime = start;
@@ -1592,7 +1651,7 @@ static void drawpage(fz_context *ctx, fz_document *doc, int pagenum)
 		if (!quiet || showfeatures || showtime || showmd5)
 			fprintf(stderr, "page %s %d%s", filename, pagenum, features);
 		fz_try(ctx)
-			dodrawpage(ctx, page, list, pagenum, &cookie, start, 0, filename, 0, seps);
+			dodrawpage(ctx, doc, page, list, pagenum, &cookie, start, 0, filename, 0, seps);
 		fz_always(ctx)
 		{
 			fz_drop_display_list(ctx, list);
@@ -1846,7 +1905,7 @@ static void bgprint_worker(void *arg)
 			memset(&cookie, 0, sizeof(cookie));
 			fz_try(bgprint.ctx)
 			{
-				dodrawpage(bgprint.ctx, bgprint.page, bgprint.list, pagenum, &cookie, start, bgprint.interptime, bgprint.filename, 1, bgprint.seps);
+				dodrawpage(bgprint.ctx, bgprint.doc, bgprint.page, bgprint.list, pagenum, &cookie, start, bgprint.interptime, bgprint.filename, 1, bgprint.seps);
 				DEBUG_THREADS(("BGPrint completed page %d\n", pagenum));
 			}
 			fz_always(bgprint.ctx)
