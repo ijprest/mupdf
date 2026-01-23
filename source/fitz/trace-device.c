@@ -68,6 +68,7 @@ static void
 fz_trace_image_info(fz_context *ctx, fz_output *out, fz_image *image)
 {
 	int type;
+	const char *format = "png";
 	int num;
 	int gen;
 
@@ -75,7 +76,17 @@ fz_trace_image_info(fz_context *ctx, fz_output *out, fz_image *image)
 		return;
 
 	type = fz_compressed_image_type(ctx, image);
-	fz_write_printf(ctx, out, " format=\"%s\"", fz_image_type_name(type));
+	if (type == FZ_IMAGE_JPEG && !image->use_colorkey && !image->use_decode && !image->mask)
+	{
+		format = "jpg";
+	}
+	else if (image->colorspace)
+	{
+		enum fz_colorspace_type ctype = fz_colorspace_type(ctx, image->colorspace);
+		if (ctype != FZ_COLORSPACE_GRAY && ctype != FZ_COLORSPACE_RGB)
+			format = "pam";
+	}
+	fz_write_printf(ctx, out, " format=\"%s\"", format);
 
 	if (fz_image_get_reference(image, &num, &gen))
 		fz_write_printf(ctx, out, " ref=\"%d %d R\"", num, gen);
