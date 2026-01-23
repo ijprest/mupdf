@@ -37,6 +37,7 @@ static int doalpha = 0;
 static int doicc = 1;
 static const char *output_name = NULL;
 static int single_object = 0;
+static int quiet = 0;
 
 static int usage(void)
 {
@@ -46,6 +47,7 @@ static int usage(void)
 	fprintf(stderr, "\t-r\tconvert images to rgb\n");
 	fprintf(stderr, "\t-a\tembed SMasks as alpha channel\n");
 	fprintf(stderr, "\t-N\tdo not use ICC color conversions\n");
+	fprintf(stderr, "\t-q\tdo not print \"extracting\" messages\n");
 	return 1;
 }
 
@@ -86,12 +88,14 @@ static void writepixmap(fz_pixmap *pix, const char *file)
 
 	if (!pix->colorspace || pix->colorspace->type == FZ_COLORSPACE_GRAY || pix->colorspace->type == FZ_COLORSPACE_RGB)
 	{
-		printf("extracting %s\n", file);
+		if (!quiet)
+			printf("extracting %s\n", file);
 		fz_save_pixmap_as_png(ctx, pix, file);
 	}
 	else
 	{
-		printf("extracting %s\n", file);
+		if (!quiet)
+			printf("extracting %s\n", file);
 		fz_save_pixmap_as_pam(ctx, pix, file);
 	}
 
@@ -106,7 +110,8 @@ writejpeg(const unsigned char *data, size_t len, const char *file)
 	out = fz_new_output_with_path(ctx, file, 0);
 	fz_try(ctx)
 	{
-		printf("extracting %s\n", file);
+		if (!quiet)
+			printf("extracting %s\n", file);
 		fz_write_data(ctx, out, data, len);
 		fz_close_output(ctx, out);
 	}
@@ -250,7 +255,8 @@ static void savefont(pdf_obj *dict)
 	{
 		fz_snprintf(namebuf, sizeof(namebuf), "font-%04d.%s", pdf_to_num(ctx, dict), ext);
 		outfile = format_output_name(namebuf, outbuf, sizeof(outbuf));
-		printf("extracting %s\n", outfile);
+		if (!quiet)
+			printf("extracting %s\n", outfile);
 		out = fz_new_output_with_path(ctx, outfile, 0);
 		fz_try(ctx)
 		{
@@ -287,7 +293,8 @@ static void savefile(pdf_obj *fs)
 			ext = ".dat";
 		fz_snprintf(namebuf, sizeof(namebuf), "file-%04d%s", pdf_to_num(ctx, fs), ext);
 		outfile = format_output_name(namebuf, outbuf, sizeof(outbuf));
-		printf("extracting %s (%s)\n", outfile, params.filename);
+		if (!quiet)
+			printf("extracting %s (%s)\n", outfile, params.filename);
 		fz_save_buffer(ctx, buf, outfile);
 	}
 	fz_always(ctx)
@@ -330,7 +337,7 @@ int pdfextract_main(int argc, char **argv)
 	int c, o, ret = 0;
 	int obj_count;
 
-	while ((c = fz_getopt(argc, argv, "p:o:raN")) != -1)
+	while ((c = fz_getopt(argc, argv, "p:o:raNq")) != -1)
 	{
 		switch (c)
 		{
@@ -339,6 +346,7 @@ int pdfextract_main(int argc, char **argv)
 		case 'r': dorgb++; break;
 		case 'a': doalpha++; break;
 		case 'N': doicc^=1; break;
+		case 'q': quiet = 1; break;
 		default: return usage();
 		}
 	}
